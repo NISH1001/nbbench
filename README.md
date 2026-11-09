@@ -5,46 +5,71 @@ generated into each tool's own format: JupyterLab `.ipynb`, marimo `.py`, and gp
 It measures what the tool adds on top of the user's code: start-up, the cost between cells,
 memory, and how close a tool gets to the fastest schedule the cells' dependencies allow.
 
-Status: 0.1.0.dev0. Dataset, generator, reference runner and the per-tool runner work; charts next. Design: [`docs/plans/01-nbbench-design.md`](docs/plans/01-nbbench-design.md).
+Status: 0.1.0.dev0. Dataset, generator, reference runner, per-tool runner and charts work.
+Design: [`docs/plans/01-nbbench-design.md`](docs/plans/01-nbbench-design.md).
 
 ## Quick start
 
+Nothing to clone or install besides [uv](https://docs.astral.sh/uv/). `uvx` builds a throwaway
+environment with nbbench, the workload libraries and the pinned tools (gpy, JupyterLab, marimo):
+
 ```bash
-uvx --python 3.13 --from "nbbench[workloads] @ git+https://github.com/NISH1001/nbbench" nbbench list
+alias nbbench='uvx --python 3.13 --from "nbbench[workloads,tools] @ git+https://github.com/NISH1001/nbbench" nbbench'
+
+nbbench list
+nbbench run --problems matmul,pd_join --shapes independent,chain --cells 10 --runs 1 --results results/try
+open results/try/README.md
 ```
 
-From a checkout:
+The first call takes a minute or two while uv installs everything; later calls start at once.
+`run` writes into `./results/<name>/` in the folder you call it from.
+
+| command | what it does |
+|---|---|
+| `nbbench list` | problems and shapes |
+| `nbbench run` | run notebooks in each tool, check checksums, write results, figures and a summary |
+| `nbbench chart results/<name>` | redraw the figures and summary of a results folder |
+| `nbbench generate --out build` | write the notebooks (`nb.ipynb`, `nb_marimo.py`, `nb_gpy.py`) without running them |
+| `nbbench reference` | run notebooks with no tool: expected checksum and critical path |
+| `nbbench calibrate` | time one cell per problem and size |
+
+Choosing notebooks (`generate`, `reference`, `run`; comma-separated, every combination is one notebook):
+
+| flag | default | values |
+|---|---|---|
+| `--problems` | all 21 | ids (`pd_groupby`), plan-13 ids (`C1`), `bound:cpu\|disk\|net`, `domain:micro\|datasci\|ml\|text\|viz` |
+| `--sizes` | `s` | `s` ≈ 10 ms, `m` ≈ 100 ms, `l` ≈ 1 s of work per cell |
+| `--shapes` | `independent` | `independent`, `chain`, `fanout`, `dag` |
+| `--cells` | `10` | work cells per notebook, e.g. `1,10,100,1000` |
+
+`run` also takes `--tools gpy,gpy-concurrent,jupyterlab,marimo` (default: all four), `--runs 3`,
+`--timeout 600`, `--results DIR` (default `results/<date>-<time>`), `--no-chart`, and
+`--gpy PATH` to measure a gpython checkout or another gpy instead of the pinned one.
+
+A sweep for a paper, on an idle machine:
 
 ```bash
-uv sync --extra workloads
-uv run nbbench list
-uv run nbbench generate --problems domain:datasci --sizes s,m --shapes chain,dag --cells 10,100 --out build
-uv run nbbench reference --problems matmul --shapes fanout --cells 50
-uv run nbbench calibrate --sizes s,m
-uv run pytest -q
-```
-
-Run the tools (install the `tools` extra: `uv sync --extra workloads --extra tools`):
-
-```bash
-uv run nbbench run --problems domain:datasci --shapes independent,dag --cells 10,100 --runs 5 \
-    --tools gpy,gpy-concurrent,jupyterlab,marimo --results results/<name>
-uv run nbbench chart results/<name>
+nbbench run --sizes s,m --shapes independent,chain,fanout,dag --cells 1,10,100,500,1000 --runs 5 \
+    --results results/2026-11-paper
 ```
 
 `run` writes `results/<name>/results.json` (machine, versions, every run), one figure per file
 (PDF for LaTeX `subfigure` and 300 dpi PNG; colour-blind safe, hatched, legends outside the data,
-no titles: captions are in the folder's `README.md`) and that `README.md` summary.
+no titles: numbered captions are in the folder's `README.md`) and that `README.md` summary. A run
+counts only when its checksum equals the reference and the kernel ran in nbbench's interpreter.
 
 The `tools` extra pins every tool: JupyterLab 4.6.6, marimo 0.25.2, ipykernel 7.4.0, and gpy at
-gpython commit `d347741` (the first with concurrent cells; PyPI 0.1.2 has none). `--gpy` overrides
-it with a gpython checkout, an executable or a name on PATH; gpy-concurrent is refused for a gpy
-without concurrent mode. Each run is checked against the
-reference checksum; the table shows `last`, `span`, `gap_ms`, `overlap`, `efficiency` and `mem_mb`
-(definitions in `nbbench/run.py`). Time only on an idle machine.
+gpython commit `d347741` (the first with concurrent cells; PyPI 0.1.2 has none). gpy-concurrent is
+refused for a gpy without concurrent mode. Time only on an idle machine.
 
-`--problems` takes ids (`pd_groupby`), plan-13 ids (`C1`), `bound:cpu|disk|net` or
-`domain:micro|datasci|ml|text|viz`.
+### From a checkout
+
+```bash
+git clone https://github.com/NISH1001/nbbench && cd nbbench
+uv sync --extra workloads --extra tools
+uv run nbbench list
+uv run pytest -q
+```
 
 ## Results
 

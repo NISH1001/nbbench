@@ -149,10 +149,13 @@ def run_gpy(workdir: Path, notebook: Path, timeout: float, env: dict[str, str], 
     t0 = time.time()
     pid, fd = pty.fork()
     if pid == 0:
-        os.chdir(workdir)
-        os.execve(command[0], [*command, str(notebook)], env)
+        try:
+            os.chdir(workdir)
+            os.execve(command[0], [*command, str(notebook)], env)
+        finally:
+            os._exit(127)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 45, 140, 0, 0))
-    launch = Launch(t0, None, pid)
+    launch = Launch(t0, None, pid, fd)
     screen = b""
     target = result_path(workdir)
     try:
@@ -174,11 +177,9 @@ def run_gpy(workdir: Path, notebook: Path, timeout: float, env: dict[str, str], 
                     launch.ready = time.time() - t0
                     os.write(fd, F5)
         wait_for_result(workdir, t0, timeout, "gpy", lambda: True)
-        launch.fd = fd
         return launch
     except BaseException:
         finish(launch)
-        os.close(fd)
         raise
 
 
@@ -303,7 +304,11 @@ def tree_mb(pid: int) -> float:
 
 
 def finish(launch: Launch) -> None:
-    """Kill the tool's whole process tree and reap it."""
+    """Kill the tool's whole process tree and reap it.
+
+    The pseudo-terminal closes first: on macOS a process killed while its terminal output is unread
+    can block in exit until someone reads it, and waiting for it would then never return.
+    """
     import psutil
 
     try:
@@ -311,19 +316,18 @@ def finish(launch: Launch) -> None:
         procs = root.children(recursive=True) + [root]
     except psutil.Error:
         procs = []
+    if launch.fd is not None:
+        try:
+            os.close(launch.fd)
+        except OSError:
+            pass
+        launch.fd = None
     for proc in procs:
         try:
             proc.kill()
         except psutil.Error:
             pass
     psutil.wait_procs(procs, timeout=5)
-    fd = getattr(launch, "fd", None)
-    if fd is not None:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
-        launch.fd = None
 
 
 NOTEBOOK = {"gpy": "nb_gpy.py", "gpy-concurrent": "nb_gpy.py", "jupyterlab": "nb.ipynb", "marimo": "nb_marimo.py"}
