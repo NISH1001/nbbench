@@ -75,15 +75,25 @@ def gpy_command(gpy: str | None) -> list[str] | None:
 
 
 def gpy_python(command: list[str]) -> str | None:
-    """The interpreter gpy runs on, read from its launcher's shebang."""
+    """The interpreter gpy runs on: its launcher's shebang, or the `python` beside it.
+
+    uv writes relocatable launchers (`#!/bin/sh` that execs the `python` next to the script), so a
+    shebang that is not a Python falls back to the interpreter in the launcher's own folder.
+    """
+    launcher = Path(command[0])
     try:
-        first = Path(command[0]).read_bytes()[:512].split(b"\n", 1)[0]
+        first = launcher.read_bytes()[:512].split(b"\n", 1)[0]
     except OSError:
         return None
-    if not first.startswith(b"#!"):
-        return None
-    interpreter = first[2:].decode().strip().split()[0]
-    return interpreter if Path(interpreter).exists() else None
+    if first.startswith(b"#!"):
+        interpreter = first[2:].decode().strip().split()[0]
+        if "python" in Path(interpreter).name and Path(interpreter).exists():
+            return interpreter
+    for name in ("python", "python3"):
+        beside = launcher.resolve().parent / name
+        if beside.exists():
+            return str(beside)
+    return None
 
 
 def gpy_has_concurrency(command: list[str]) -> bool:

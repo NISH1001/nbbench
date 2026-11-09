@@ -33,6 +33,21 @@ def test_gpy_command_finds_a_checkout(tmp_path):
     assert adapters.gpy_command(str(tmp_path / "missing")) is None
 
 
+def test_gpy_python_reads_direct_and_relocatable_launchers(tmp_path):
+    import sys
+
+    direct = tmp_path / "direct" / "gpy"
+    direct.parent.mkdir()
+    direct.write_text(f"#!{sys.executable}\nimport gpython\n")
+    assert adapters.gpy_python([str(direct)]) == sys.executable
+
+    relocatable = tmp_path / "uv" / "bin" / "gpy"
+    relocatable.parent.mkdir(parents=True)
+    relocatable.write_text("#!/bin/sh\n'''exec' \"$(dirname -- \"$(realpath -- \"$0\")\")\"/'python' \"$0\" \"$@\"\n' '''\n")
+    (relocatable.parent / "python").symlink_to(sys.executable)
+    assert adapters.gpy_python([str(relocatable)]) == str(relocatable.parent / "python")
+
+
 def test_each_tool_gets_its_own_config(tmp_path):
     env = adapters.tool_env("gpy-concurrent", tmp_path, 1234)
     assert env["XDG_CONFIG_HOME"] == str(tmp_path / "config")
