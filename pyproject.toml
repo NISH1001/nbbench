@@ -17,11 +17,13 @@ workloads = [
     "matplotlib>=3.9",
 ]
 tools = [
-    "ipykernel>=6.29",
-    "jupyterlab>=4.2",
-    "marimo>=0.10",
-    "psutil>=6",
-    "tornado>=6.4",
+    "gpynb @ git+https://github.com/igaurab/gpython@d34774160fd30724ac70f10c7f9a6f6c8239637b",
+    "jupyterlab==4.6.6",
+    "jupyter-server==2.21.1",
+    "marimo==0.25.2",
+    "ipykernel==7.4.0",
+    "psutil==7.2.2",
+    "tornado==6.6",
 ]
 
 [project.scripts]
@@ -39,6 +41,9 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["nbbench"]

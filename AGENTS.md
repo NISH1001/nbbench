@@ -31,5 +31,11 @@ run it or any timing sweep while the tests or anything heavy runs.
 - Import heavy libraries (numpy, pandas, nbformat, marimo) where they are used, not at module
   level in `nbbench/`; the package itself depends only on the standard library.
 - Plans go in `docs/plans/NN-<topic>.md`: extremely concise, ending with unresolved questions.
-- Results for the paper come from an idle machine with metadata recorded; CI numbers are for
-  correctness and regressions only.
+- Results live in `results/<name>/` (tracked): `results.json`, figures, `README.md`, all written by
+  `nbbench run` / `nbbench chart`; never edit them by hand. Results for the paper come from an
+  idle machine; label anything else `dev` in its folder name. CI numbers are for correctness only.
+- Tool versions are pinned in the `tools` extra (gpy by gpython commit); bump them on purpose and
+  say so in the commit.
+- Figures follow the theme in `nbbench/chart.py` (Okabe–Ito, a hatch and outline per tool, serif,
+  7.2 in wide, PDF with embedded fonts + 300 dpi PNG). A new tool gets the next colour and its
+  own hatch; re-run the palette validator.

@@ -28,16 +28,31 @@ Run the tools (install the `tools` extra: `uv sync --extra workloads --extra too
 
 ```bash
 uv run nbbench run --problems domain:datasci --shapes independent,dag --cells 10,100 --runs 5 \
-    --tools gpy,gpy-concurrent,jupyterlab,marimo --gpy ~/path/to/gpython --json results.json
+    --tools gpy,gpy-concurrent,jupyterlab,marimo --results results/<name>
+uv run nbbench chart results/<name>
 ```
 
-`--gpy` takes a gpython checkout, an executable or a name on PATH (default `gpy`); gpy-concurrent
-needs a gpy with concurrent cells (newer than PyPI 0.1.2). Each run is checked against the
+`run` writes `results/<name>/results.json` (machine, versions, every run), the figures (PDF and
+300 dpi PNG, colour-blind safe, hatched, sized for a paper) and a `README.md` summary.
+
+The `tools` extra pins every tool: JupyterLab 4.6.6, marimo 0.25.2, ipykernel 7.4.0, and gpy at
+gpython commit `d347741` (the first with concurrent cells; PyPI 0.1.2 has none). `--gpy` overrides
+it with a gpython checkout, an executable or a name on PATH; gpy-concurrent is refused for a gpy
+without concurrent mode. Each run is checked against the
 reference checksum; the table shows `last`, `span`, `gap_ms`, `overlap`, `efficiency` and `mem_mb`
 (definitions in `nbbench/run.py`). Time only on an idle machine.
 
 `--problems` takes ids (`pd_groupby`), plan-13 ids (`C1`), `bound:cpu|disk|net` or
 `domain:micro|datasci|ml|text|viz`.
+
+## Results
+
+Each run is a folder under [`results/`](results/) with its own summary page.
+
+- [`results/2026-11-09-dev`](results/2026-11-09-dev/README.md): development run on a busy laptop
+  (size s, 10 and 100 cells, one run each); checks the pipeline, not for citing.
+
+![overhead](results/2026-11-09-dev/overhead_s.png)
 
 ## Datasheet
 

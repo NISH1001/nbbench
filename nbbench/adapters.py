@@ -56,7 +56,13 @@ def result_path(workdir: Path) -> Path:
 
 
 def gpy_command(gpy: str | None) -> list[str] | None:
-    """`--gpy` as a command: a path to a gpython checkout, to an executable, or a name on PATH."""
+    """`--gpy` as a command: a gpython checkout, an executable, or a name on PATH.
+
+    Without `--gpy`, the gpy pinned in the `tools` extra (next to this interpreter) comes first.
+    """
+    pinned = Path(sys.prefix) / "bin" / "gpy"
+    if gpy is None and pinned.exists():
+        return [str(pinned)]
     candidate = gpy or "gpy"
     path = Path(candidate).expanduser()
     if path.is_dir():

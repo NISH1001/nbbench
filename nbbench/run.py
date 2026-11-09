@@ -11,7 +11,8 @@ every cell; the critical path over the shape uses that work, so a tool's efficie
   gap_ms       mean time between one cell ending and the next starting, in start order
                (negative when cells overlap)
   overlap      most work cells running at the same moment
-  efficiency   reference critical path / span (1.0 = as fast as the dependencies allow)
+  efficiency   best possible / span, where best possible = max(reference critical path,
+               reference total work / CPUs) (1.0 = no schedule on this machine could do better)
   mem_mb       memory of the tool's process tree when the notebook finished
   ok           checksum equals the reference and the kernel ran in the workload interpreter
 """
@@ -48,6 +49,11 @@ def overlap(spans: list[tuple[float, float]]) -> int:
     return most
 
 
+def best_possible(reference: dict, cpus: int | None = None) -> float:
+    """No schedule beats the longer of the critical path and all the work spread over every core."""
+    return max(reference["critical_path_s"], reference["sequential_s"] / (cpus or os.cpu_count() or 1))
+
+
 def measure(tool: str, notebook: Notebook, folder: Path, expected: dict, timeout: float, port: int,
             gpy: str | None) -> dict:
     workdir = Path(tempfile.mkdtemp(prefix=f"nbbench-{tool}-"))
@@ -75,7 +81,7 @@ def measure(tool: str, notebook: Notebook, folder: Path, expected: dict, timeout
         "work_ms": 1000 * statistics.mean(end - start for start, end in spans),
         "gap_ms": 1000 * statistics.mean(gaps) if gaps else None,
         "overlap": overlap(spans),
-        "efficiency": expected["critical_path_s"] / span if span > 0 else None,
+        "efficiency": best_possible(expected) / span if span > 0 else None,
         "mem_mb": memory,
         "checksum": result["checksum"],
         "ok": result["checksum"] == expected["checksum"] and same_kernel,
@@ -95,10 +101,14 @@ def summarize(runs: list[dict]) -> dict:
 
 
 def _version(package: str) -> str | None:
+    """The installed version, with the git commit when it was installed from git."""
     try:
-        return metadata.version(package)
+        found = metadata.distribution(package)
     except metadata.PackageNotFoundError:
         return None
+    origin = json.loads(found.read_text("direct_url.json") or "{}")
+    commit = origin.get("vcs_info", {}).get("commit_id")
+    return f"{found.version}+{commit[:12]}" if commit else found.version
 
 
 def machine(tools: list[str], gpy: str | None) -> dict:
@@ -121,7 +131,7 @@ def machine(tools: list[str], gpy: str | None) -> dict:
         "prefix": sys.prefix,
         "gpy": {"command": command, "version": gpy_version},
         "packages": {name: _version(name) for name in
-                     ("jupyterlab", "ipykernel", "marimo", "numpy", "pandas", "scikit-learn", "pyarrow", "pillow",
+                     ("gpynb", "jupyterlab", "jupyter-server", "ipykernel", "marimo", "numpy", "pandas", "scikit-learn", "pyarrow", "pillow",
                       "matplotlib")},
         "blas_threads": {name: os.environ.get(name) for name in BLAS_THREADS},
     }

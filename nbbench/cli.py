@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -42,16 +43,29 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--tools", default="gpy,gpy-concurrent,jupyterlab,marimo")
     run.add_argument("--runs", type=int, default=3)
     run.add_argument("--timeout", type=float, default=600)
-    run.add_argument("--gpy", default=None, help="gpy command, executable, or gpython checkout (default: gpy on PATH)")
+    run.add_argument("--gpy", default=None,
+                     help="gpy command, executable, or gpython checkout (default: the gpy pinned in the tools extra)")
     run.add_argument("--seed", type=int, default=0, help="seed for the tool order in each run")
-    run.add_argument("--json", type=Path, default=None, help="write meta, every run and the summaries to FILE")
+    run.add_argument("--results", type=Path, default=None,
+                     help="folder for results.json, figures and README.md (default: results/<date>-<time>)")
+    run.add_argument("--no-chart", action="store_true", help="skip the figures")
+
+    chart = commands.add_parser("chart", help="draw figures and README.md for a results folder")
+    chart.add_argument("folder", type=Path)
 
     serve = commands.add_parser("serve", help="run the local HTTP server for network problems")
     serve.add_argument("port", type=int)
 
     args = parser.parse_args(argv)
     {"list": _list, "generate": _generate, "samples": _samples, "reference": _reference,
-     "calibrate": _calibrate, "run": _run, "serve": lambda a: server.serve(a.port)}[args.command](args)
+     "calibrate": _calibrate, "run": _run, "chart": _chart, "serve": lambda a: server.serve(a.port)}[args.command](args)
+
+
+def _chart(args: argparse.Namespace) -> None:
+    from nbbench.chart import draw
+
+    for name in draw(args.folder):
+        print(args.folder / name)
 
 
 def _run(args: argparse.Namespace) -> None:
@@ -70,8 +84,16 @@ def _run(args: argparse.Namespace) -> None:
     if not tools:
         raise SystemExit("no tool can run here")
     notebooks = list(_notebooks(args))
+    folder = args.results or Path("results") / time.strftime("%Y-%m-%d-%H%M")
+    folder.mkdir(parents=True, exist_ok=True)
+    print(f"results: {folder}")
     with _network(True) as port:
-        report = sweep(notebooks, tools, args.runs, args.timeout, port, args.gpy, args.json, args.seed)
+        report = sweep(notebooks, tools, args.runs, args.timeout, port, args.gpy, folder / "results.json", args.seed)
+    if not args.no_chart:
+        from nbbench.chart import draw
+
+        draw(folder)
+        print(f"figures and summary: {folder / 'README.md'}")
     failed = [f"{row['problem']}-{row['size']}-{row['shape']}-n{row['n']} {row['tool']}" for row in report["rows"] if not row["ok"]]
     if failed:
         raise SystemExit("not ok: " + "; ".join(failed))
