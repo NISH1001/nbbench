@@ -5,8 +5,7 @@ generated into each tool's own format: JupyterLab `.ipynb`, marimo `.py`, and gp
 It measures what the tool adds on top of the user's code: start-up, the cost between cells,
 memory, and how close a tool gets to the fastest schedule the cells' dependencies allow.
 
-Status: 0.1.0.dev0. The dataset, generator and reference runner work; the per-tool runner
-(`nbbench run`) is next. Design: [`docs/plans/01-nbbench-design.md`](docs/plans/01-nbbench-design.md).
+Status: 0.1.0.dev0. Dataset, generator, reference runner and the per-tool runner work; charts next. Design: [`docs/plans/01-nbbench-design.md`](docs/plans/01-nbbench-design.md).
 
 ## Quick start
 
@@ -24,6 +23,18 @@ uv run nbbench reference --problems matmul --shapes fanout --cells 50
 uv run nbbench calibrate --sizes s,m
 uv run pytest -q
 ```
+
+Run the tools (install the `tools` extra: `uv sync --extra workloads --extra tools`):
+
+```bash
+uv run nbbench run --problems domain:datasci --shapes independent,dag --cells 10,100 --runs 5 \
+    --tools gpy,gpy-concurrent,jupyterlab,marimo --gpy ~/path/to/gpython --json results.json
+```
+
+`--gpy` takes a gpython checkout, an executable or a name on PATH (default `gpy`); gpy-concurrent
+needs a gpy with concurrent cells (newer than PyPI 0.1.2). Each run is checked against the
+reference checksum; the table shows `last`, `span`, `gap_ms`, `overlap`, `efficiency` and `mem_mb`
+(definitions in `nbbench/run.py`). Time only on an idle machine.
 
 `--problems` takes ids (`pd_groupby`), plan-13 ids (`C1`), `bound:cpu|disk|net` or
 `domain:micro|datasci|ml|text|viz`.

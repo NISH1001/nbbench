@@ -136,7 +136,8 @@ datasets/
 nbbench/
   cli.py             list | generate | samples | reference | calibrate | serve   (done)
   registry.py shapes.py generate.py reference.py server.py                     (done)
-  adapters/ run.py chart.py                                                    (next)
+  adapters.py run.py   `nbbench run` for gpy, gpy-concurrent, jupyterlab, marimo   (done)
+  chart.py                                                                     (next)
 results/<version>/   raw JSON + meta per release
 docs/plans/
 tests/
@@ -154,8 +155,8 @@ one at a time because of false writes: setup data passed to a library call (`mod
 `SALES.assign`), `$fs` for the disk problems, and aliasing through `digest`. A gpy improvement
 target; nbbench does not change problems to suit it.
 
-Next: adapters + `nbbench run` (port `gpython/scripts/warmbench.py`, `workbench.py`), charts,
-gpy CI job, idle-machine sweep.
+`nbbench run` done (192 tests; 1000-cell runs pass in all four tools). Next: charts, gpy CI job,
+idle-machine sweep, a gpy release with concurrent cells to pin in the `tools` extra.
 
 ## Publishing
 
