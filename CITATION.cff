@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use nbbench, please cite it as below."
+title: "nbbench: a tool-neutral benchmark for notebook tools"
+type: dataset
+version: 0.1.0.dev0
+date-released: 2026-11-09
+license: [MIT, CC-BY-4.0]
+repository-code: "https://github.com/NISH1001/nbbench"
+authors:
+  - family-names: Pantha
+    given-names: Nishan
+keywords:
+  - notebooks
+  - benchmark
+  - jupyter
+  - marimo
+  - dataflow

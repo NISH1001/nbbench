@@ -1,0 +1,47 @@
+{
+ "nbbench": "0.1.0.dev0",
+ "problem": "disk_big",
+ "legacy": "D1",
+ "bound": "disk",
+ "domain": "micro",
+ "size": "s",
+ "params": {
+  "mb": 7
+ },
+ "shape": "independent",
+ "n": 10,
+ "cells": 12,
+ "parents": {
+  "1": [],
+  "2": [],
+  "3": [],
+  "4": [],
+  "5": [],
+  "6": [],
+  "7": [],
+  "8": [],
+  "9": [],
+  "10": []
+ },
+ "critical_path_cells": 1,
+ "files": {
+  "jupyter": "nb.ipynb",
+  "marimo": "nb_marimo.py",
+  "gpy": "nb_gpy.py"
+ },
+ "expected": {
+  "checksum": "f69f80d9583343a2",
+  "digests": [
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89",
+   "a8994be28c22cb89"
+  ]
+ }
+}

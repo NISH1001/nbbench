@@ -1,0 +1,47 @@
+{
+ "nbbench": "0.1.0.dev0",
+ "problem": "io_parquet",
+ "legacy": null,
+ "bound": "disk",
+ "domain": "datasci",
+ "size": "s",
+ "params": {
+  "rows": 25000
+ },
+ "shape": "independent",
+ "n": 10,
+ "cells": 12,
+ "parents": {
+  "1": [],
+  "2": [],
+  "3": [],
+  "4": [],
+  "5": [],
+  "6": [],
+  "7": [],
+  "8": [],
+  "9": [],
+  "10": []
+ },
+ "critical_path_cells": 1,
+ "files": {
+  "jupyter": "nb.ipynb",
+  "marimo": "nb_marimo.py",
+  "gpy": "nb_gpy.py"
+ },
+ "expected": {
+  "checksum": "13f95318637d5056",
+  "digests": [
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00",
+   "7.971373e+00"
+  ]
+ }
+}

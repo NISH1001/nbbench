@@ -1,0 +1,48 @@
+{
+ "nbbench": "0.1.0.dev0",
+ "problem": "image",
+ "legacy": null,
+ "bound": "cpu",
+ "domain": "viz",
+ "size": "s",
+ "params": {
+  "side": 720,
+  "blur": 2
+ },
+ "shape": "independent",
+ "n": 10,
+ "cells": 12,
+ "parents": {
+  "1": [],
+  "2": [],
+  "3": [],
+  "4": [],
+  "5": [],
+  "6": [],
+  "7": [],
+  "8": [],
+  "9": [],
+  "10": []
+ },
+ "critical_path_cells": 1,
+ "files": {
+  "jupyter": "nb.ipynb",
+  "marimo": "nb_marimo.py",
+  "gpy": "nb_gpy.py"
+ },
+ "expected": {
+  "checksum": "d70ff30086a6d8d2",
+  "digests": [
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485",
+   "37.485"
+  ]
+ }
+}

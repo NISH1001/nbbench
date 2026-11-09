@@ -1,0 +1,45 @@
+[project]
+name = "nbbench"
+version = "0.1.0.dev0"
+description = "A tool-neutral benchmark for notebook tools: workloads defined once, generated for Jupyter, marimo and gpy."
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+dependencies = []
+
+[project.optional-dependencies]
+workloads = [
+    "numpy>=2.1",
+    "pandas>=2.2",
+    "pyarrow>=18",
+    "scikit-learn>=1.5",
+    "pillow>=11",
+    "matplotlib>=3.9",
+]
+
+[project.scripts]
+nbbench = "nbbench.cli:main"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "marimo>=0.25.2",
+    "nbclient>=0.11.0",
+    "nbformat>=5.11.1",
+    "pytest>=8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nbbench"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"datasets/problems.json" = "nbbench/datasets/problems.json"
+"datasets/shapes.json" = "nbbench/datasets/shapes.json"
+"datasets/problems" = "nbbench/datasets/problems"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

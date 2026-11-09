@@ -1,0 +1,11 @@
+{
+  "cells": "Work cells are numbered 1..N. Cell i defines x{i} from its parents' outputs; a cell with no parents reads x0 from the setup cell; a cell with one parent p reads x{p}; a cell with several parents reads combine([x{p}, ...]) in ascending order.",
+  "shapes": [
+    {"id": "independent", "parents": "parents(i) = []", "critical_path": "1"},
+    {"id": "chain", "parents": "parents(1) = []; parents(i) = [i - 1]", "critical_path": "N"},
+    {"id": "fanout", "parents": "parents(1) = []; parents(i) = [1] for 1 < i < N; parents(N) = [2 .. N - 1] when N >= 3, else [N - 1]", "critical_path": "min(N, 3)"},
+    {"id": "dag", "params": {"width": 8, "fanin": 2, "seed": 0},
+     "parents": "Cells fill layers of `width` in order (layer of i = (i - 1) // width). Layer 0 has no parents. A cell in layer L > 0 takes min(fanin, size of layer L - 1) distinct parents from layer L - 1, chosen by random.Random(f'{seed}:{i}').sample(sorted(layer L - 1), k), then sorted.",
+     "critical_path": "number of layers = ceil(N / width)"}
+  ]
+}

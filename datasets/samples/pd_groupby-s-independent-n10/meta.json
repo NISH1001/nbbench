@@ -1,0 +1,48 @@
+{
+ "nbbench": "0.1.0.dev0",
+ "problem": "pd_groupby",
+ "legacy": null,
+ "bound": "cpu",
+ "domain": "datasci",
+ "size": "s",
+ "params": {
+  "rows": 490000,
+  "groups": 1000
+ },
+ "shape": "independent",
+ "n": 10,
+ "cells": 12,
+ "parents": {
+  "1": [],
+  "2": [],
+  "3": [],
+  "4": [],
+  "5": [],
+  "6": [],
+  "7": [],
+  "8": [],
+  "9": [],
+  "10": []
+ },
+ "critical_path_cells": 1,
+ "files": {
+  "jupyter": "nb.ipynb",
+  "marimo": "nb_marimo.py",
+  "gpy": "nb_gpy.py"
+ },
+ "expected": {
+  "checksum": "a23f2fdf28e6d058",
+  "digests": [
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02",
+   "8.738656e+02"
+  ]
+ }
+}
