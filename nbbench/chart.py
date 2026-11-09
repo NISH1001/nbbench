@@ -41,18 +41,18 @@ COLUMN = 3.5
 
 CAPTIONS = {
     "cost_per_cell": "Tool cost per cell: mean time between one work cell ending and the next starting, at {top} "
-                     "{shape} cells, mean ± sd over runs. Problems grouped by domain. gpy (concurrent) is left out: "
-                     "its cells overlap, so the gap is not defined.",
+                     "{shape} cells. Error bars: {runs}. Problems grouped by domain. gpy (concurrent) is left out: its cells "
+                     "overlap, so the gap is not defined.",
     "slowdown": "Launch until the last cell finishes, divided by the time the same cells take back to back with no "
-                "tool (geometric mean over problems, {shape} cells). 1 = no cost beyond the work; below 1 = faster "
-                "than back to back.",
-    "memory": "Memory of each tool's process tree when the last cell finished, {top} {shape} cells, mean ± sd over "
-              "problems.",
+                "tool, geometric mean over problems ({shape} cells). Error bars: {runs}, of that mean. 1 = no cost beyond the "
+                "work; below 1 = faster than back to back.",
+    "memory": "Memory of each tool's process tree when the last cell finished, {top} {shape} cells, mean over "
+              "problems. Error bars: {runs}, of that mean.",
     "efficiency": "{bound}-bound problems at {top} cells: best possible time (the longer of the critical path and all "
-                  "work spread over {cpus} CPUs) divided by the measured span, mean ± sd over problems. 1 = no "
-                  "schedule on this machine could be faster.",
-    "per_problem": "Launch until the last cell finishes against N for each problem ({shape} cells, log–log). Dotted: "
-                   "the cells back to back with no tool.",
+                  "work spread over {cpus} CPUs) divided by the measured span, mean over problems. Error bars: {runs}, "
+                  "of that mean. 1 = no schedule on this machine could be faster.",
+    "per_problem": "Launch until the last cell finishes against N for each problem ({shape} cells, log–log). Error bars: {runs}. "
+                   "Dotted: the cells back to back with no tool.",
 }
 
 
@@ -155,6 +155,12 @@ class Results:
         return "independent" if "independent" in shapes else shapes[0]
 
 
+def best_possible_of(row: dict, cpus: int | None) -> float:
+    from nbbench.run import best_possible
+
+    return best_possible(row["reference"], cpus)
+
+
 def efficiency_of(row: dict, cpus: int | None) -> float:
     """Best possible time (critical path, or all work over every CPU) over the measured span."""
     from nbbench.run import best_possible
@@ -164,6 +170,35 @@ def efficiency_of(row: dict, cpus: int | None) -> float:
 
 def slowdown(row: dict) -> float:
     return row["last"] / row["reference"]["sequential_s"]
+
+
+def good_runs(row: dict) -> list[dict]:
+    return [run for run in row.get("runs", []) if "error" not in run]
+
+
+def across_runs(rows: list[dict], measure, combine) -> tuple[float | None, float | None]:
+    """Mean ± sd over repeated runs of a value combined over several rows.
+
+    Run k of every row is combined first (e.g. a geometric mean over problems), so the error bar
+    is the run-to-run spread of that combined value, not the spread between problems.
+    """
+    runs = min((len(good_runs(row)) for row in rows), default=0)
+    if not rows or runs == 0:
+        return None, None
+    per_run = [combine([measure(row, good_runs(row)[k]) for row in rows]) for k in range(runs)]
+    return mean_sd([value for value in per_run if value is not None])
+
+
+def run_slowdown(row: dict, run: dict) -> float:
+    return run["last"] / row["reference"]["sequential_s"]
+
+
+def runs_label(results: "Results") -> str:
+    counts = sorted({len(good_runs(row)) for row in results.rows})
+    if counts == [1]:
+        return "none (a single run)"
+    spread = f"{counts[0]}" if len(counts) == 1 else f"{counts[0]}–{counts[-1]}"
+    return f"± 1 sd over {spread} runs"
 
 
 def bars(ax, groups, tools, value, labels, rotate=0) -> None:
@@ -225,10 +260,14 @@ def slowdown_vs_n(results: Results, size: str, folder: Path) -> tuple[str, dict]
     shape, cells = results.main_shape(size), results.cells(size)
     fig, ax = plt.subplots(figsize=(COLUMN, 2.5), layout="constrained")
     for tool in results.tools:
-        points = [geomean([slowdown(r) for r in results.select(size=size, shape=shape, n=n, tool=tool)])
-                  for n in cells]
-        ax.plot(cells, points, color=COLOR[tool], marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=3.5,
-                linewidth=1.2)
+        pairs = [across_runs(results.select(size=size, shape=shape, n=n, tool=tool), run_slowdown, geomean)
+                 for n in cells]
+        shown = [(n, p) for n, p in zip(cells, pairs) if p[0] is not None]
+        if not shown:
+            continue
+        ax.errorbar([n for n, _ in shown], [p[0] for _, p in shown], yerr=[p[1] or 0 for _, p in shown], color=COLOR[tool],
+                    marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=3.5, linewidth=1.2, capsize=2,
+                    elinewidth=0.7)
     ax.axhline(1.0, color=REFERENCE, linewidth=0.9, linestyle=":")
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -246,7 +285,8 @@ def memory(results: Results, size: str, folder: Path) -> tuple[str, dict]:
     shape, top = results.main_shape(size), results.cells(size)[-1]
     fig, ax = plt.subplots(figsize=(COLUMN, 2.2), layout="constrained")
     for x, tool in enumerate(results.tools):
-        mean, sd = mean_sd([r["mem_mb"] for r in results.select(size=size, shape=shape, n=top, tool=tool)])
+        mean, sd = across_runs(results.select(size=size, shape=shape, n=top, tool=tool),
+                               lambda row, run: run["mem_mb"], statistics.mean)
         ax.bar(x, mean or 0, 0.7, yerr=sd or 0, capsize=2, color=COLOR[tool], hatch=HATCH[tool], edgecolor="black",
                linewidth=0.5, error_kw={"elinewidth": 0.6, "capthick": 0.6})
     ax.set_xticks(range(len(results.tools)), [LABEL[t].replace(" (", "\n(") for t in results.tools])
@@ -265,8 +305,8 @@ def efficiency(results: Results, size: str, folder: Path) -> list[tuple[str, dic
             continue
 
         def value(tool, shape):
-            return mean_sd([efficiency_of(r, cpus) for r in
-                            results.select(size=size, shape=shape, n=top, tool=tool, bound=bound)])
+            return across_runs(results.select(size=size, shape=shape, n=top, tool=tool, bound=bound),
+                               lambda row, run: best_possible_of(row, cpus) / run["span"], statistics.mean)
 
         fig, ax = plt.subplots(figsize=(COLUMN, 2.3), layout="constrained")
         bars(ax, shapes, results.tools, value, shapes)
@@ -294,8 +334,9 @@ def per_problem(results: Results, size: str, folder: Path) -> tuple[str, dict] |
     for ax, problem in zip(axes.flat, chosen):
         for tool in results.tools:
             found = [(n, results.one(size=size, shape=shape, n=n, tool=tool, problem=problem)) for n in cells]
-            ax.plot([n for n, r in found if r], [r["last"] for _, r in found if r], color=COLOR[tool],
-                    marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=2.5, linewidth=1.0)
+            ax.errorbar([n for n, r in found if r], [r["last"] for _, r in found if r],
+                        yerr=[r.get("last_std") or 0 for _, r in found if r], color=COLOR[tool], marker=MARKER[tool],
+                        linestyle=LINESTYLE[tool], markersize=2.5, linewidth=1.0, capsize=1.5, elinewidth=0.6)
         reference = [(n, results.one(size=size, shape=shape, n=n, problem=problem)) for n in cells]
         ax.plot([n for n, r in reference if r], [r["reference"]["sequential_s"] for _, r in reference if r],
                 color=REFERENCE, linestyle=":", linewidth=0.9)
@@ -317,9 +358,9 @@ def per_problem(results: Results, size: str, folder: Path) -> tuple[str, dict] |
     return save(fig, folder, f"per_problem_{size}"), {"shape": shape}
 
 
-def caption(stem: str, values: dict) -> str:
+def caption(stem: str, values: dict, runs: str) -> str:
     key = next(k for k in CAPTIONS if stem.startswith(k))
-    return CAPTIONS[key].format(**values)
+    return CAPTIONS[key].format(runs=runs, **values)
 
 
 def summary(results: Results, figures: dict[str, list[tuple[str, dict]]]) -> str:
@@ -360,7 +401,7 @@ def summary(results: Results, figures: dict[str, list[tuple[str, dict]]]) -> str
             )
         lines.append("")
         for number, (stem, values) in enumerate(figures.get(size, []), start=1):
-            lines += [f"**Figure {size}{number}.** {caption(stem, values)} ([PDF]({stem}.pdf))", "",
+            lines += [f"**Figure {size}{number}.** {caption(stem, values, runs_label(results))} ([PDF]({stem}.pdf))", "",
                       f"![{stem}]({stem}.png)", ""]
     failed = [r for r in results.rows if not r["ok"]]
     if failed:

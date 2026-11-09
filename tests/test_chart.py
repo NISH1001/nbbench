@@ -15,6 +15,8 @@ def fake_report():
                         "tool": tool, "ok": True, "last": 0.5 + sequential * (1 + 0.1 * k), "span": sequential,
                         "gap_ms": 0.3 + k, "gap_ms_std": 0.05, "efficiency": 0.1 * (k + 1), "mem_mb": 150 + 20 * k,
                         "reference": {"sequential_s": sequential, "critical_path_s": 0.01, "checksum": "x"},
+                        "runs": [{"last": 0.5 + sequential * (1 + 0.1 * k) + 0.01 * r, "span": sequential + 0.001 * r,
+                                  "mem_mb": 150 + 20 * k + r, "ok": True} for r in range(3)],
                     })
     return {"meta": {"nbbench": "test", "date": "today", "platform": "test", "cpus": 4, "load": [0.1, 0, 0],
                      "python": "3.13.7 x", "packages": {"marimo": "0.25.2", "gpynb": None}}, "rows": rows}
@@ -30,6 +32,7 @@ def test_draw_writes_figures_and_summary(tmp_path):
     assert "| gpy (concurrent) |" in summary
     assert "![cost_per_cell_s](cost_per_cell_s.png)" in summary
     assert "**Figure s1.**" in summary
+    assert "Error bars: ± 1 sd over 3 runs" in summary
     assert "gpynb" not in summary
     assert "README.md" in written
 

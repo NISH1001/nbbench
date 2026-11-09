@@ -76,7 +76,7 @@ uv run pytest -q
 Each run is a folder under [`results/`](results/) with its own summary page.
 
 - [`results/2026-11-09-dev`](results/2026-11-09-dev/README.md): development run on a busy laptop
-  (size s, 10 and 100 cells, one run each); checks the pipeline, not for citing.
+  (size s, 10 and 100 cells, 3 runs each); checks the pipeline, not for citing.
 
 ![tool cost per cell](results/2026-11-09-dev/cost_per_cell_s.png)
 
