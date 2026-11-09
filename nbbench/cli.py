@@ -37,12 +37,44 @@ def main(argv: list[str] | None = None) -> None:
     calibrate.add_argument("--sizes", default="s,m,l")
     calibrate.add_argument("--repeats", type=int, default=5)
 
+    run = commands.add_parser("run", help="run notebooks in each tool and measure them")
+    _grid(run)
+    run.add_argument("--tools", default="gpy,gpy-concurrent,jupyterlab,marimo")
+    run.add_argument("--runs", type=int, default=3)
+    run.add_argument("--timeout", type=float, default=600)
+    run.add_argument("--gpy", default=None, help="gpy command, executable, or gpython checkout (default: gpy on PATH)")
+    run.add_argument("--seed", type=int, default=0, help="seed for the tool order in each run")
+    run.add_argument("--json", type=Path, default=None, help="write meta, every run and the summaries to FILE")
+
     serve = commands.add_parser("serve", help="run the local HTTP server for network problems")
     serve.add_argument("port", type=int)
 
     args = parser.parse_args(argv)
     {"list": _list, "generate": _generate, "samples": _samples, "reference": _reference,
-     "calibrate": _calibrate, "serve": lambda a: server.serve(a.port)}[args.command](args)
+     "calibrate": _calibrate, "run": _run, "serve": lambda a: server.serve(a.port)}[args.command](args)
+
+
+def _run(args: argparse.Namespace) -> None:
+    from nbbench import adapters
+    from nbbench.run import sweep
+
+    tools = []
+    for tool in args.tools.split(","):
+        if tool not in adapters.TOOLS:
+            raise SystemExit(f"no tool {tool!r}; known: {', '.join(adapters.TOOLS)}")
+        missing = adapters.available(tool, args.gpy)
+        if missing:
+            print(f"{tool}: skipped, {missing}", file=sys.stderr)
+        else:
+            tools.append(tool)
+    if not tools:
+        raise SystemExit("no tool can run here")
+    notebooks = list(_notebooks(args))
+    with _network(True) as port:
+        report = sweep(notebooks, tools, args.runs, args.timeout, port, args.gpy, args.json, args.seed)
+    failed = [f"{row['problem']}-{row['size']}-{row['shape']}-n{row['n']} {row['tool']}" for row in report["rows"] if not row["ok"]]
+    if failed:
+        raise SystemExit("not ok: " + "; ".join(failed))
 
 
 def _grid(parser: argparse.ArgumentParser) -> None:

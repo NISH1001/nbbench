@@ -16,6 +16,13 @@ workloads = [
     "pillow>=11",
     "matplotlib>=3.9",
 ]
+tools = [
+    "ipykernel>=6.29",
+    "jupyterlab>=4.2",
+    "marimo>=0.10",
+    "psutil>=6",
+    "tornado>=6.4",
+]
 
 [project.scripts]
 nbbench = "nbbench.cli:main"
