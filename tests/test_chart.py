@@ -23,12 +23,13 @@ def fake_report():
 def test_draw_writes_figures_and_summary(tmp_path):
     (tmp_path / "results.json").write_text(json.dumps(fake_report()))
     written = draw(tmp_path)
-    for stem in ("overhead_s", "shapes_s", "problems_s"):
+    for stem in ("cost_per_cell_s", "slowdown_s", "memory_s", "efficiency_cpu_s", "efficiency_disk_s", "per_problem_s"):
         assert (tmp_path / f"{stem}.pdf").stat().st_size > 1000
         assert (tmp_path / f"{stem}.png").stat().st_size > 1000
     summary = (tmp_path / "README.md").read_text()
     assert "| gpy (concurrent) |" in summary
-    assert "![overhead_s.png](overhead_s.png)" in summary
+    assert "![cost_per_cell_s](cost_per_cell_s.png)" in summary
+    assert "**Figure s1.**" in summary
     assert "gpynb" not in summary
     assert "README.md" in written
 

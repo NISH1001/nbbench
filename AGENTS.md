@@ -37,5 +37,7 @@ run it or any timing sweep while the tests or anything heavy runs.
 - Tool versions are pinned in the `tools` extra (gpy by gpython commit); bump them on purpose and
   say so in the commit.
 - Figures follow the theme in `nbbench/chart.py` (Okabe–Ito, a hatch and outline per tool, serif,
-  7.2 in wide, PDF with embedded fonts + 300 dpi PNG). A new tool gets the next colour and its
+  PDF with embedded fonts + 300 dpi PNG): one panel per file (3.5 in column or 7.2 in page), no
+  title (captions live in `CAPTIONS` and the results README), legends outside the axes. Look at
+  every figure after changing it. A new tool gets the next colour and its
   own hatch; re-run the palette validator.

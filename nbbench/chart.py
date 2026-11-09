@@ -2,21 +2,20 @@
 
     nbbench chart results/<name>
 
-Reads `results.json` and writes, per size preset present, PDF (fonts embedded) and 300 dpi PNG:
+Reads `results.json` and writes one figure per file, per size preset present, as PDF (fonts
+embedded, for LaTeX `subfigure`) and 300 dpi PNG. Figures carry no title: the caption says what
+they show (see `CAPTIONS`, repeated in the folder's `README.md`). Legends sit above the axes, never
+on the data.
 
-  overhead_<size>   (a) ms between cells per problem at the largest N, problems grouped by domain
-                    (b) launch → last cell over the reference sequential time, against N
-                        (geometric mean over problems; below 1 = faster than running the cells
-                        back to back, above 1 = the tool's own cost)
-                    (c) memory of the tool's process tree at the largest N
-  shapes_<size>     efficiency (reference critical path / span) per shape, one panel per bound
-  problems_<size>   launch → last cell against N, one panel per problem, reference grey dotted
-
-and `README.md` with the machine, versions, a summary table and the figures.
+  cost_per_cell_<size>        ms between cells per problem at the largest N (full width)
+  slowdown_<size>             launch → last cell ÷ cells run back to back, against N (one column)
+  memory_<size>               memory of each tool's process tree at the largest N (one column)
+  efficiency_<bound>_<size>   best possible time ÷ span per shape, one file per bound (one column)
+  per_problem_<size>          launch → last cell against N, one small panel per problem (full width)
 
 Theme as gpython's benchmark charts: Okabe–Ito colours (checked with the dataviz validator:
 CVD ΔE ≥ 8.6, normal-vision ΔE ≥ 18.4), a hatch and black outline per tool so every figure reads in
-greyscale, serif type sized for a two-column paper at 7.2 in wide.
+greyscale, serif type sized for a two-column paper (3.5 in column, 7.2 in page).
 """
 
 from __future__ import annotations
@@ -37,7 +36,24 @@ BOUNDS = ("cpu", "disk", "net")
 SIZES = ("s", "m", "l")
 GRID = "#d9d9d9"
 REFERENCE = "#7f7f7f"
-WIDTH = 7.2
+PAGE = 7.2
+COLUMN = 3.5
+
+CAPTIONS = {
+    "cost_per_cell": "Tool cost per cell: mean time between one work cell ending and the next starting, at {top} "
+                     "{shape} cells, mean ± sd over runs. Problems grouped by domain. gpy (concurrent) is left out: "
+                     "its cells overlap, so the gap is not defined.",
+    "slowdown": "Launch until the last cell finishes, divided by the time the same cells take back to back with no "
+                "tool (geometric mean over problems, {shape} cells). 1 = no cost beyond the work; below 1 = faster "
+                "than back to back.",
+    "memory": "Memory of each tool's process tree when the last cell finished, {top} {shape} cells, mean ± sd over "
+              "problems.",
+    "efficiency": "{bound}-bound problems at {top} cells: best possible time (the longer of the critical path and all "
+                  "work spread over {cpus} CPUs) divided by the measured span, mean ± sd over problems. 1 = no "
+                  "schedule on this machine could be faster.",
+    "per_problem": "Launch until the last cell finishes against N for each problem ({shape} cells, log–log). Dotted: "
+                   "the cells back to back with no tool.",
+}
 
 
 def setup():
@@ -47,8 +63,8 @@ def setup():
     import matplotlib.pyplot as plt
 
     plt.rcParams.update({
-        "font.family": "serif", "font.size": 8.5, "axes.titlesize": 9, "axes.labelsize": 8.5,
-        "legend.fontsize": 7.5, "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "hatch.linewidth": 0.6,
+        "font.family": "serif", "font.size": 8, "axes.labelsize": 8, "legend.fontsize": 7.5,
+        "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "hatch.linewidth": 0.6,
         "axes.spines.top": False, "axes.spines.right": False, "pdf.fonttype": 42, "ps.fonttype": 42,
     })
     return plt
@@ -59,12 +75,53 @@ def geomean(values: list[float]) -> float | None:
     return math.exp(statistics.mean(math.log(v) for v in positive)) if positive else None
 
 
-def save(fig, folder: Path, stem: str) -> list[str]:
-    names = []
+def mean_sd(values: list[float]) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    return statistics.mean(values), statistics.stdev(values) if len(values) > 1 else 0.0
+
+
+def save(fig, folder: Path, stem: str) -> str:
     for ext in ("pdf", "png"):
         fig.savefig(folder / f"{stem}.{ext}", dpi=300)
-        names.append(f"{stem}.{ext}")
-    return names
+    import matplotlib.pyplot as plt
+
+    plt.close(fig)
+    return stem
+
+
+def legend_above(fig, tools: list[str], kind: str = "bar", extra: list | None = None, narrow: bool = False) -> None:
+    """One row of legend entries above the axes, outside the plotting area."""
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+
+    if kind == "bar":
+        handles = [Patch(facecolor=COLOR[t], hatch=HATCH[t], edgecolor="black", linewidth=0.5, label=LABEL[t])
+                   for t in tools]
+    else:
+        handles = [Line2D([], [], color=COLOR[t], marker=MARKER[t], linestyle=LINESTYLE[t], markersize=3.5,
+                          linewidth=1.2, label=LABEL[t]) for t in tools]
+    handles += extra or []
+    columns = 2 if narrow else (len(handles) if len(handles) <= 4 else math.ceil(len(handles) / 2))
+    fig.legend(handles=handles, loc="outside upper center", ncol=columns, frameon=False, handlelength=1.8,
+               columnspacing=1.2)
+
+
+def plain_ticks(ax, axes: str = "xy") -> None:
+    """Log axes labelled 0.5, 1, 2 rather than 5×10⁻¹, 10⁰, 2×10⁰."""
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+
+    for name in axes:
+        axis = ax.xaxis if name == "x" else ax.yaxis
+        if name == "y":
+            axis.set_major_locator(LogLocator(base=10, subs=(1, 2, 5)))
+        axis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}"))
+        axis.set_minor_formatter(NullFormatter())
+
+
+def style(ax) -> None:
+    ax.yaxis.grid(True, color=GRID, linewidth=0.5)
+    ax.set_axisbelow(True)
 
 
 class Results:
@@ -76,6 +133,10 @@ class Results:
 
     def select(self, **match) -> list[dict]:
         return [r for r in self.rows if all(r.get(k) == v for k, v in match.items())]
+
+    def one(self, **match) -> dict | None:
+        found = self.select(**match)
+        return found[0] if found else None
 
     def problems(self, size: str) -> list[str]:
         rows = self.select(size=size)
@@ -93,10 +154,6 @@ class Results:
         shapes = self.shapes(size)
         return "independent" if "independent" in shapes else shapes[0]
 
-    def one(self, **match) -> dict | None:
-        found = self.select(**match)
-        return found[0] if found else None
-
 
 def efficiency_of(row: dict, cpus: int | None) -> float:
     """Best possible time (critical path, or all work over every CPU) over the measured span."""
@@ -109,7 +166,7 @@ def slowdown(row: dict) -> float:
     return row["last"] / row["reference"]["sequential_s"]
 
 
-def grouped_bars(ax, groups, tools, value, labels, rotate=0):
+def bars(ax, groups, tools, value, labels, rotate=0) -> None:
     import numpy as np
 
     width = 0.8 / len(tools)
@@ -119,157 +176,153 @@ def grouped_bars(ax, groups, tools, value, labels, rotate=0):
         means = [p[0] if p[0] is not None else 0 for p in pairs]
         errors = [p[1] or 0 for p in pairs]
         ax.bar(x + (i - (len(tools) - 1) / 2) * width, means, width * 0.92, yerr=errors, capsize=1.2,
-               color=COLOR[tool], hatch=HATCH[tool], edgecolor="black", linewidth=0.5, label=LABEL[tool],
+               color=COLOR[tool], hatch=HATCH[tool], edgecolor="black", linewidth=0.5,
                error_kw={"elinewidth": 0.6, "capthick": 0.6})
-    ax.set_xticks(x, labels, rotation=rotate, ha="right" if rotate else "center")
-    ax.yaxis.grid(True, color=GRID, linewidth=0.5)
-    ax.set_axisbelow(True)
+    ax.set_xticks(x, labels, rotation=rotate, ha="right" if rotate else "center",
+                  rotation_mode="anchor" if rotate else "default")
+    style(ax)
 
 
-def label_domains(ax, problems, domain):
+def domain_bands(ax, problems, domain) -> None:
+    """Domain names in a strip above the bars, inside headroom kept free for them, with thin rules between."""
     import matplotlib.transforms
 
-    below = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
+    top = ax.get_ylim()[1]
+    ax.set_ylim(0, top * 1.12)
+    over = matplotlib.transforms.blended_transform_factory(ax.transData, ax.transAxes)
     start = 0
     for i in range(1, len(problems) + 1):
         if i < len(problems) and domain[problems[i]] == domain[problems[start]]:
             continue
-        ax.text((start + i - 1) / 2, 1.0, domain[problems[start]], transform=below, ha="center", va="bottom",
+        ax.text((start + i - 1) / 2, 0.985, domain[problems[start]], transform=over, ha="center", va="top",
                 fontsize=7, fontweight="bold")
         if i < len(problems):
             ax.axvline(i - 0.5, color="#bdbdbd", linewidth=0.6, zorder=0)
         start = i
 
 
-def overhead(results: Results, size: str, folder: Path) -> list[str]:
+def cost_per_cell(results: Results, size: str, folder: Path) -> tuple[str, dict]:
     plt = setup()
-    shape = results.main_shape(size)
+    shape, top = results.main_shape(size), results.cells(size)[-1]
     problems = results.problems(size)
-    cells = results.cells(size)
-    top = cells[-1]
     domain = {r["problem"]: r["domain"] for r in results.select(size=size)}
-    sequential = [t for t in results.tools if t != "gpy-concurrent"]
-    fig = plt.figure(figsize=(WIDTH, 4.6), constrained_layout=True)
-    grid = fig.add_gridspec(2, 2, height_ratios=[1.15, 1], width_ratios=[1.6, 1])
-    a, b, c = fig.add_subplot(grid[0, :]), fig.add_subplot(grid[1, 0]), fig.add_subplot(grid[1, 1])
+    tools = [t for t in results.tools if t != "gpy-concurrent"]
 
     def gap(tool, problem):
         row = results.one(size=size, shape=shape, n=top, tool=tool, problem=problem)
         return (row["gap_ms"], row["gap_ms_std"]) if row and row.get("gap_ms") is not None else (None, None)
 
-    grouped_bars(a, problems, sequential, gap, problems, rotate=35)
-    label_domains(a, problems, domain)
-    a.set_ylabel("ms between cells")
-    a.set_title(f"(a) Tool cost per cell, {top} {shape} cells, size {size}", pad=12)
-    a.legend(frameon=False, loc="upper left", ncol=len(sequential))
-    if "gpy-concurrent" in results.tools:
-        a.text(1.0, 1.0, "gpy (concurrent) not shown: its cells overlap", transform=a.transAxes, ha="right",
-               va="top", fontsize=6.5, color=REFERENCE)
-
-    for tool in results.tools:
-        points = []
-        for n in cells:
-            ratios = [slowdown(r) for r in results.select(size=size, shape=shape, n=n, tool=tool)]
-            points.append(geomean(ratios))
-        b.plot(cells, points, color=COLOR[tool], marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=3.5,
-               linewidth=1.2, label=LABEL[tool])
-    b.axhline(1.0, color=REFERENCE, linewidth=0.9, linestyle=":")
-    b.set_xscale("log")
-    plain_ticks(b)
-    b.set_xlabel("cells (N)")
-    b.set_ylabel("time ÷ cells run back to back")
-    b.set_title("(b) Launch → last cell, geometric mean")
-    b.yaxis.grid(True, color=GRID, linewidth=0.5)
-    b.legend(frameon=False, fontsize=6.5)
-
-    def memory(tool, _):
-        values = [r["mem_mb"] for r in results.select(size=size, shape=shape, n=top, tool=tool)]
-        return (statistics.mean(values), statistics.stdev(values) if len(values) > 1 else 0) if values else (None, None)
-
-    grouped_bars(c, ["all"], results.tools, memory, [""])
-    c.set_ylabel("MB")
-    c.set_title(f"(c) Memory, {top} cells, mean ± sd")
-    c.set_xticks([])
-    names = save(fig, folder, f"overhead_{size}")
-    plt.close(fig)
-    return names
+    fig, ax = plt.subplots(figsize=(PAGE, 2.7), layout="constrained")
+    bars(ax, problems, tools, gap, problems, rotate=40)
+    domain_bands(ax, problems, domain)
+    ax.set_ylabel("ms between cells")
+    legend_above(fig, tools)
+    return save(fig, folder, f"cost_per_cell_{size}"), {"top": top, "shape": shape}
 
 
-def shapes(results: Results, size: str, folder: Path) -> list[str]:
+def slowdown_vs_n(results: Results, size: str, folder: Path) -> tuple[str, dict]:
     plt = setup()
-    cells = results.cells(size)
-    top = cells[-1]
-    bounds = [b for b in BOUNDS if results.select(size=size, bound=b)]
-    shape_list = results.shapes(size)
-    fig, axes = plt.subplots(1, len(bounds), figsize=(WIDTH, 2.4), constrained_layout=True, sharey=True,
-                             squeeze=False)
-    for ax, bound in zip(axes[0], bounds):
-        def efficiency(tool, shape):
-            values = [efficiency_of(r, results.meta.get("cpus")) for r in
-                      results.select(size=size, shape=shape, n=top, tool=tool, bound=bound)]
-            if not values:
-                return (None, None)
-            return (statistics.mean(values), statistics.stdev(values) if len(values) > 1 else 0)
+    shape, cells = results.main_shape(size), results.cells(size)
+    fig, ax = plt.subplots(figsize=(COLUMN, 2.5), layout="constrained")
+    for tool in results.tools:
+        points = [geomean([slowdown(r) for r in results.select(size=size, shape=shape, n=n, tool=tool)])
+                  for n in cells]
+        ax.plot(cells, points, color=COLOR[tool], marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=3.5,
+                linewidth=1.2)
+    ax.axhline(1.0, color=REFERENCE, linewidth=0.9, linestyle=":")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    plain_ticks(ax)
+    ax.set_xticks(cells)
+    ax.set_xlabel("cells (N)")
+    ax.set_ylabel("× time of cells back to back")
+    style(ax)
+    legend_above(fig, results.tools, kind="line", narrow=True)
+    return save(fig, folder, f"slowdown_{size}"), {"shape": shape}
 
-        grouped_bars(ax, shape_list, results.tools, efficiency, shape_list)
+
+def memory(results: Results, size: str, folder: Path) -> tuple[str, dict]:
+    plt = setup()
+    shape, top = results.main_shape(size), results.cells(size)[-1]
+    fig, ax = plt.subplots(figsize=(COLUMN, 2.2), layout="constrained")
+    for x, tool in enumerate(results.tools):
+        mean, sd = mean_sd([r["mem_mb"] for r in results.select(size=size, shape=shape, n=top, tool=tool)])
+        ax.bar(x, mean or 0, 0.7, yerr=sd or 0, capsize=2, color=COLOR[tool], hatch=HATCH[tool], edgecolor="black",
+               linewidth=0.5, error_kw={"elinewidth": 0.6, "capthick": 0.6})
+    ax.set_xticks(range(len(results.tools)), [LABEL[t].replace(" (", "\n(") for t in results.tools])
+    ax.set_ylabel("MB")
+    style(ax)
+    return save(fig, folder, f"memory_{size}"), {"top": top, "shape": shape}
+
+
+def efficiency(results: Results, size: str, folder: Path) -> list[tuple[str, dict]]:
+    plt = setup()
+    top, cpus = results.cells(size)[-1], results.meta.get("cpus")
+    shapes = results.shapes(size)
+    written = []
+    for bound in BOUNDS:
+        if not results.select(size=size, bound=bound):
+            continue
+
+        def value(tool, shape):
+            return mean_sd([efficiency_of(r, cpus) for r in
+                            results.select(size=size, shape=shape, n=top, tool=tool, bound=bound)])
+
+        fig, ax = plt.subplots(figsize=(COLUMN, 2.3), layout="constrained")
+        bars(ax, shapes, results.tools, value, shapes)
         ax.axhline(1.0, color=REFERENCE, linewidth=0.9, linestyle=":")
-        ax.set_title(f"{bound}-bound, {top} cells")
-    axes[0][0].set_ylabel("best possible ÷ span")
-    axes[0][-1].legend(frameon=False, fontsize=6.5, loc="upper right")
-    fig.suptitle(f"Efficiency: best possible time (critical path, or all work over {results.meta.get('cpus')} CPUs) "
-                 f"÷ span, size {size}; 1 = optimal", fontsize=9)
-    names = save(fig, folder, f"shapes_{size}")
-    plt.close(fig)
-    return names
+        ax.set_ylim(0, 1.05)
+        ax.set_ylabel("best possible ÷ span")
+        legend_above(fig, results.tools, narrow=True)
+        written.append((save(fig, folder, f"efficiency_{bound}_{size}"), {"bound": bound, "top": top, "cpus": cpus}))
+    return written
 
 
-def plain_ticks(ax) -> None:
-    """Log axes labelled 0.5, 1, 2 rather than 5×10⁻¹, 10⁰, 2×10⁰."""
-    from matplotlib.ticker import FuncFormatter, NullFormatter
-
-    for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}"))
-        axis.set_minor_formatter(NullFormatter())
-
-
-def problems(results: Results, size: str, folder: Path) -> list[str]:
+def per_problem(results: Results, size: str, folder: Path) -> tuple[str, dict] | None:
     cells = results.cells(size)
     if len(cells) < 2:
-        return []
+        return None
     plt = setup()
+    from matplotlib.lines import Line2D
+
     shape = results.main_shape(size)
     chosen = results.problems(size)
     cols = 4
-    rows = math.ceil((len(chosen) + 1) / cols)
-    fig, axes = plt.subplots(rows, cols, figsize=(WIDTH, 1.55 * rows + 0.4), constrained_layout=True, sharex=True,
+    rows = math.ceil(len(chosen) / cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(PAGE, 1.45 * rows + 0.5), layout="constrained", sharex=True,
                              squeeze=False)
     for ax, problem in zip(axes.flat, chosen):
         for tool in results.tools:
-            found = [results.one(size=size, shape=shape, n=n, tool=tool, problem=problem) for n in cells]
-            ax.plot([n for n, r in zip(cells, found) if r], [r["last"] for r in found if r], color=COLOR[tool],
-                    marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=2.5, linewidth=1.0, label=LABEL[tool])
-        reference = [results.one(size=size, shape=shape, n=n, problem=problem) for n in cells]
-        ax.plot([n for n, r in zip(cells, reference) if r], [r["reference"]["sequential_s"] for r in reference if r],
-                color=REFERENCE, linestyle=":", linewidth=0.9, label="cells back to back, no tool")
+            found = [(n, results.one(size=size, shape=shape, n=n, tool=tool, problem=problem)) for n in cells]
+            ax.plot([n for n, r in found if r], [r["last"] for _, r in found if r], color=COLOR[tool],
+                    marker=MARKER[tool], linestyle=LINESTYLE[tool], markersize=2.5, linewidth=1.0)
+        reference = [(n, results.one(size=size, shape=shape, n=n, problem=problem)) for n in cells]
+        ax.plot([n for n, r in reference if r], [r["reference"]["sequential_s"] for _, r in reference if r],
+                color=REFERENCE, linestyle=":", linewidth=0.9)
         ax.set_xscale("log")
         ax.set_yscale("log")
         plain_ticks(ax)
-        ax.set_title(problem, fontsize=7.5)
-        ax.yaxis.grid(True, color="#e5e5e5", linewidth=0.5)
+        ax.set_xticks(cells)
+        ax.set_title(problem, fontsize=7.5, pad=2)
+        ax.tick_params(labelbottom=True)
+        style(ax)
     for ax in axes.flat[len(chosen):]:
         ax.axis("off")
-    handles, labels = axes.flat[0].get_legend_handles_labels()
-    axes.flat[len(chosen)].legend(handles, labels, frameon=False, loc="center", fontsize=6.5)
     for ax in axes[:, 0]:
         ax.set_ylabel("s to last cell")
     for ax in axes[-1]:
         ax.set_xlabel("cells (N)")
-    names = save(fig, folder, f"problems_{size}")
-    plt.close(fig)
-    return names
+    no_tool = Line2D([], [], color=REFERENCE, linestyle=":", linewidth=0.9, label="cells back to back, no tool")
+    legend_above(fig, results.tools, kind="line", extra=[no_tool])
+    return save(fig, folder, f"per_problem_{size}"), {"shape": shape}
 
 
-def summary(results: Results, figures: dict[str, list[str]]) -> str:
+def caption(stem: str, values: dict) -> str:
+    key = next(k for k in CAPTIONS if stem.startswith(k))
+    return CAPTIONS[key].format(**values)
+
+
+def summary(results: Results, figures: dict[str, list[tuple[str, dict]]]) -> str:
     meta = results.meta
     lines = [
         f"# nbbench results: {meta.get('date', '')}",
@@ -283,14 +336,12 @@ def summary(results: Results, figures: dict[str, list[str]]) -> str:
         "",
     ]
     for size in results.sizes:
-        shape = results.main_shape(size)
-        top = results.cells(size)[-1]
+        shape, top = results.main_shape(size), results.cells(size)[-1]
         lines += [
             f"## Size {size}",
             "",
-            f"Over every problem at {top} {shape} cells. Slowdown: launch → last cell ÷ the cells run back to back "
-            "without a tool (geometric mean). Efficiency: best possible time ÷ span, where best possible is the "
-            "longer of the critical path and all work spread over every CPU (mean over every shape).",
+            f"At {top} {shape} cells over every problem. Slowdown: launch → last cell ÷ the cells back to back with "
+            "no tool (geometric mean). Efficiency: best possible time ÷ span, mean over every shape and problem.",
             "",
             "| tool | slowdown | ms between cells | efficiency | memory MB | runs ok |",
             "|---|---|---|---|---|---|",
@@ -299,18 +350,18 @@ def summary(results: Results, figures: dict[str, list[str]]) -> str:
             rows = results.select(size=size, shape=shape, n=top, tool=tool)
             every = [r for r in results.rows if r["tool"] == tool and r["size"] == size]
             gaps = [r["gap_ms"] for r in rows if r.get("gap_ms") is not None]
-            efficiency = [efficiency_of(r, meta.get("cpus")) for r in every]
-            ok = sum(1 for r in every if r["ok"])
+            eff = [efficiency_of(r, meta.get("cpus")) for r in every]
             lines.append(
                 f"| {LABEL[tool]} | {geomean([slowdown(r) for r in rows]) or 0:.2f} | "
                 f"{statistics.median(gaps) if gaps else float('nan'):.2f} | "
-                f"{statistics.mean(efficiency) if efficiency else float('nan'):.2f} | "
-                f"{statistics.mean(r['mem_mb'] for r in rows) if rows else float('nan'):.0f} | {ok}/{len(every)} |"
+                f"{statistics.mean(eff) if eff else float('nan'):.2f} | "
+                f"{statistics.mean(r['mem_mb'] for r in rows) if rows else float('nan'):.0f} | "
+                f"{sum(1 for r in every if r['ok'])}/{len(every)} |"
             )
         lines.append("")
-        for name in figures.get(size, []):
-            if name.endswith(".png"):
-                lines += [f"![{name}]({name})", ""]
+        for number, (stem, values) in enumerate(figures.get(size, []), start=1):
+            lines += [f"**Figure {size}{number}.** {caption(stem, values)} ([PDF]({stem}.pdf))", "",
+                      f"![{stem}]({stem}.png)", ""]
     failed = [r for r in results.rows if not r["ok"]]
     if failed:
         lines += ["## Not ok", ""] + [f"- {r['problem']}-{r['size']}-{r['shape']}-n{r['n']} {r['tool']}" for r in failed]
@@ -319,8 +370,12 @@ def summary(results: Results, figures: dict[str, list[str]]) -> str:
 
 def draw(folder: Path) -> list[str]:
     results = Results(json.loads((folder / "results.json").read_text()))
+    for stale in list(folder.glob("*.png")) + list(folder.glob("*.pdf")):
+        stale.unlink()
     figures = {}
     for size in results.sizes:
-        figures[size] = overhead(results, size, folder) + shapes(results, size, folder) + problems(results, size, folder)
+        made = [cost_per_cell(results, size, folder), slowdown_vs_n(results, size, folder),
+                memory(results, size, folder), *efficiency(results, size, folder), per_problem(results, size, folder)]
+        figures[size] = [entry for entry in made if entry]
     (folder / "README.md").write_text(summary(results, figures))
-    return [name for names in figures.values() for name in names] + ["README.md"]
+    return [f"{stem}.{ext}" for entries in figures.values() for stem, _ in entries for ext in ("pdf", "png")] + ["README.md"]

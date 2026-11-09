@@ -32,8 +32,9 @@ uv run nbbench run --problems domain:datasci --shapes independent,dag --cells 10
 uv run nbbench chart results/<name>
 ```
 
-`run` writes `results/<name>/results.json` (machine, versions, every run), the figures (PDF and
-300 dpi PNG, colour-blind safe, hatched, sized for a paper) and a `README.md` summary.
+`run` writes `results/<name>/results.json` (machine, versions, every run), one figure per file
+(PDF for LaTeX `subfigure` and 300 dpi PNG; colour-blind safe, hatched, legends outside the data,
+no titles: captions are in the folder's `README.md`) and that `README.md` summary.
 
 The `tools` extra pins every tool: JupyterLab 4.6.6, marimo 0.25.2, ipykernel 7.4.0, and gpy at
 gpython commit `d347741` (the first with concurrent cells; PyPI 0.1.2 has none). `--gpy` overrides
@@ -52,7 +53,7 @@ Each run is a folder under [`results/`](results/) with its own summary page.
 - [`results/2026-11-09-dev`](results/2026-11-09-dev/README.md): development run on a busy laptop
   (size s, 10 and 100 cells, one run each); checks the pipeline, not for citing.
 
-![overhead](results/2026-11-09-dev/overhead_s.png)
+![tool cost per cell](results/2026-11-09-dev/cost_per_cell_s.png)
 
 ## Datasheet
 
